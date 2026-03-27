@@ -1,0 +1,68 @@
+use rayon::prelude::*;
+use std::io::Write;
+use std::time::Instant;
+use std::fs::File; // Required for file export
+
+pub fn compress_pixels(width: usize, height: usize, raw_data: &[u16]) -> Vec<u8> {
+    let plane_w = width / 6;
+    let plane_h = height / 6;
+    let total_pixels = width * height;
+
+    let start_math = Instant::now();
+
+    // --- PHASE 1: PARALLEL MATH (2D Delta & ZigZag) ---
+    let mut all_residuals = vec![0u32; total_pixels];
+
+    all_residuals.par_chunks_mut(plane_w * plane_h).enumerate().for_each(|(plane_idx, chunk)| {
+        let r_start = plane_idx / 6;
+        let c_start = plane_idx % 6;
+        let mut top_row = vec![0i32; plane_w];
+
+        for (r_count, r) in (r_start..height).step_by(6).enumerate() {
+            let mut left_pred = 0i32;
+            let mut top_left_pred = 0i32;
+            let row_offset = r * width;
+            let chunk_row_offset = r_count * plane_w;
+
+            for (c_count, c) in (c_start..width).step_by(6).enumerate() {
+                let current = raw_data[row_offset + c] as i32;
+                let above = top_row[c_count];
+
+                // Synced Math: matches your Python training logic
+                let diff = current - left_pred - above + top_left_pred;
+                let zz = if diff >= 0 { (diff << 1) as u32 } else { ((-diff << 1) - 1) as u32 };
+
+                chunk[chunk_row_offset + c_count] = zz;
+
+                top_left_pred = above;
+                left_pred = current;
+                top_row[c_count] = current;
+            }
+        }
+    });
+
+    println!("⏱️ Phase 1 (Math/ZigZag): {:?}", start_math.elapsed());
+
+    // --- BINARY EXPORT FOR PYTHON ANALYSIS ---
+    let start_export = Instant::now();
+    let bin_bytes = unsafe {
+        std::slice::from_raw_parts(all_residuals.as_ptr() as *const u8, all_residuals.len() * 4)
+    };
+    if let Ok(mut f) = File::create("residuals.bin") {
+        let _ = f.write_all(bin_bytes);
+        println!("⏱️ Export (Binary): {:?}", start_export.elapsed());
+    }
+
+    // --- PHASE 2: BALANCED PERFORMANCE (Level 5) ---
+    let start_zstd = Instant::now();
+    let mut encoder = zstd::stream::Encoder::new(Vec::new(), 5).unwrap();
+    encoder.multithread(0).unwrap();
+    encoder.include_contentsize(true).unwrap();
+    encoder.set_pledged_src_size(Some(bin_bytes.len() as u64)).unwrap();
+
+    encoder.write_all(bin_bytes).unwrap();
+    let result = encoder.finish().unwrap();
+
+    println!("⏱️ Phase 2 (Zstd L5): {:?}", start_zstd.elapsed());
+    result
+}
