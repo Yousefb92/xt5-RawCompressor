@@ -11,7 +11,6 @@ pub fn compress_pixels(path: &Path, width: usize, height: usize, raw_data: &[u16
     let total_pixels = width * height;
 
     // --- PHASE 0: EXTRACT RAF WRAPPER ---
-    // We read the original file to save the metadata/headers for later reconstruction
     let original_bytes = fs::read(path).expect("Failed to read original RAF");
     let pixel_bytes_len = total_pixels * 2;
     let header_size = original_bytes.len() - pixel_bytes_len;

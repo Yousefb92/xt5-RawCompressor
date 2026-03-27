@@ -1,0 +1,18 @@
+[package]
+name = "X-Plane"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rawler = "0.7.1"
+zstd = { version = "0.13", features = ["zstdmt"] }
+rayon = "1.10"
+eframe = "0.27"
+rfd = "0.14"
+num_cpus = "1.16"
+tiff = "0.11.2"
+
+[profile.release]
+opt-level = 2
+codegen-units = 1
+incremental = false

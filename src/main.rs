@@ -9,7 +9,6 @@ use std::io::Write;
 use rayon::prelude::*;
 use std::sync::mpsc;
 
-// Use rawler for robust Fuji RAF support
 use rawler::decode_file;
 use rawler::rawimage::RawImageData;
 
